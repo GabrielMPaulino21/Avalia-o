@@ -2,18 +2,54 @@ import streamlit as st
 import pandas as pd
 import os
 import plotly.express as px
+from PIL import Image
+import base64
+import time
+
+# --- FUNÇÃO PARA CODIFICAR IMAGEM (PARA O PLANO DE FUNDO) ---
+@st.cache_data
+def get_base64_of_bin_file(bin_file):
+    try:
+        with open(bin_file, 'rb') as f:
+            data = f.read()
+        return base64.b64encode(data).decode()
+    except FileNotFoundError:
+        return None
+
+def set_png_as_page_bg(png_file):
+    bin_str = get_base64_of_bin_file(png_file)
+    if bin_str is None:
+        st.error(f"Arquivo de imagem de fundo não encontrado em '{png_file}'. Verifique a pasta 'assets'.")
+        return
+        
+    page_bg_img = f'''
+    <style>
+    .stApp {{
+        background-image: url("data:image/jpeg;base64,{bin_str}");
+        background-size: cover;
+        background-repeat: no-repeat;
+        background-attachment: scroll;
+    }}
+    </style>
+    '''
+    st.markdown(page_bg_img, unsafe_allow_html=True)
+
 
 # --- CONFIGURAÇÕES DA PÁGINA ---
+try:
+    # Usando o "Pé com Asas" como ícone da aba do navegador
+    page_icon = Image.open("assets/logo_sidebar.png")
+except FileNotFoundError:
+    page_icon = "📊"
+
 st.set_page_config(
     page_title="AVALIAÇÃO DE FORNECEDORES",
-    page_icon="📊",
+    page_icon=page_icon,
     layout="wide"
 )
 
 # --- DADOS E CONSTANTES ---
-# Lista de "nomes chave" dos administradores.
 ADMIN_KEYS = [('gabriel', 'paulino'), ('rodrigo', 'saito')]
-
 EMPRESAS = [
     "ABSAFE ENGENHARIA E SEGURANCA", "ASSESSORIA TECNICA ATENE LTDA", "ATUS ENGENHARIA LDA",
     "BECOMEX CONSULTORIA LTDA", "BONA - TERCEIRIZACAO DE MAO-DE-OBRA PARA LOGISTICA LTDA",
@@ -58,7 +94,7 @@ PERGUNTAS = {
         "4.3": "Suppliers deliver all the project documentation required (Ex: As Built, Drawings, Data sheets, Manuals, etc)"
     }
 }
-OPCOES_VOTO = ['1', '2', '3', '4', '5', 'N/A']
+OPCOES_VOTO = ['1', '2', '3', '4', '5', 'Não se Aplica']
 ARQUIVO_VOTOS = 'votos.csv'
 
 # --- FUNÇÕES DE DADOS ---
@@ -68,17 +104,39 @@ def carregar_votos():
     else:
         return pd.DataFrame(columns=['user_name', 'empresa', 'categoria', 'pergunta_id', 'pergunta_texto', 'voto'])
 
-# --- GERENCIAMENTO DE ESTADO E LOGIN ---
+# --- GERENCIAMENTO DE ESTADO ---
 if 'user_name' not in st.session_state:
     st.session_state.user_name = None
     st.session_state.is_admin = False
 
-if st.session_state.user_name is None:
+# --- LÓGICA DE EXIBIÇÃO ---
+
+# Se o usuário não está logado, mostra a tela de login
+if not st.session_state.user_name:
+    set_png_as_page_bg('assets/login_fundo.jpg')
+    
+    st.markdown("""
+        <style>
+        h1 {
+            color: black !important;
+            background-color: rgba(255, 255, 255, 0.7);
+            padding: 10px;
+            border-radius: 10px;
+        }
+        label {
+            color: black !important;
+            font-weight: bold !important;
+            background-color: rgba(255, 255, 255, 0.7);
+            padding: 5px;
+            border-radius: 5px;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
     st.title("Bem-vindo ao Sistema de Avaliação de Fornecedores")
-    st.header("Por favor, identifique-se para continuar")
     
     with st.form("login_form"):
-        nome = st.text_input("Digite seu nome completo:")
+        nome = st.text_input("Digite seu nome completo:", key="login_name")
         submitted = st.form_submit_button("Entrar")
         if submitted:
             if nome:
@@ -89,14 +147,20 @@ if st.session_state.user_name is None:
                     st.session_state.is_admin = True
                 else:
                     st.session_state.is_admin = False
-                    
-                st.rerun()
+                st.rerun() 
             else:
                 st.error("Por favor, insira seu nome para continuar.")
-else:
-    # --- APLICAÇÃO PRINCIPAL (APÓS LOGIN) ---
-    st.title("RELATÓRIO DE VOTAÇÃO DE FORNECEDORES")
 
+# Se já está logado, mostra o app principal
+else:
+    # --- APLICAÇÃO PRINCIPAL ---
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        st.title("RELATÓRIO DE VOTAÇÃO DE FORNECEDORES")
+    with col2:
+        st.image("assets/banner_votacao.jpg", width=250) 
+
+    st.sidebar.image("assets/logo_sidebar.png")
     st.sidebar.success(f"Logado como:\n**{st.session_state.user_name}**")
     if st.session_state.is_admin:
         st.sidebar.warning("👑 **Nível de Acesso:** Administrador")
@@ -106,25 +170,30 @@ else:
         st.rerun()
 
     tab_votacao, tab_relatorio, tab_dados = st.tabs(["📝 VOTAÇÃO", "📊 RELATÓRIO DE MÉDIAS", "⚙️ DADOS E ADMINISTRAÇÃO"])
-
     df_votos_geral = carregar_votos()
-
+    
     with tab_votacao:
         st.header(f"Formulário de Avaliação - Bem-vindo(a), {st.session_state.user_name.title()}")
-        st.write("Selecione um fornecedor para avaliar. Você só pode avaliar cada empresa uma única vez.")
+        
+        # Bloco de texto de boas-vindas (imagem removida daqui)
+        st.write("""
+        Sua avaliação é fundamental para a melhoria contínua e o fortalecimento da nossa parceria com os fornecedores. 
+        
+        **Como proceder:**
+        1.  Selecione um fornecedor na lista abaixo.
+        2.  Responda a todas as perguntas com notas de 1 a 5.
+        3.  Use a opção "Não se Aplica" caso o critério não seja relevante.
+        
+        Agradecemos a sua colaboração!
+        """)
+        
+        st.markdown("---")
 
-        empresa_selecionada = st.selectbox(
-            "Selecione o Fornecedor:", options=EMPRESAS, index=None, placeholder="Escolha uma empresa..."
-        )
-
+        empresa_selecionada = st.selectbox("Selecione o Fornecedor:", options=EMPRESAS, index=None, placeholder="Escolha uma empresa...")
         if empresa_selecionada:
-            ja_votou = not df_votos_geral[
-                (df_votos_geral['user_name'] == st.session_state.user_name) &
-                (df_votos_geral['empresa'] == empresa_selecionada)
-            ].empty
-
+            ja_votou = not df_votos_geral[(df_votos_geral['user_name'] == st.session_state.user_name) & (df_votos_geral['empresa'] == empresa_selecionada)].empty
             if ja_votou:
-                st.warning(f"Você já completou a avaliação para a empresa **{empresa_selecionada}**. Para corrigir, peça a um administrador para remover sua avaliação anterior na aba de administração.")
+                st.warning(f"Você já completou a avaliação para a empresa **{empresa_selecionada}**. Para corrigir, peça a um administrador para remover sua avaliação anterior.")
             else:
                 with st.form(key=f"form_{empresa_selecionada}", clear_on_submit=True):
                     st.subheader(f"Avaliação para: **{empresa_selecionada}**")
@@ -134,33 +203,26 @@ else:
                         st.markdown(f"### **{categoria}**")
                         for pid, ptexto in perguntas_categoria.items():
                             respostas[f"{categoria}_{pid}"] = st.radio(f"**{pid}** - {ptexto}", OPCOES_VOTO, horizontal=True, key=f"vote_{empresa_selecionada}_{categoria}_{pid}")
-                    
                     if st.form_submit_button("Registrar Avaliação"):
                         novos_votos = []
                         for chave, voto in respostas.items():
                             categoria, pid = chave.split('_')
-                            novos_votos.append({
-                                'user_name': st.session_state.user_name, 'empresa': empresa_selecionada, 
-                                'categoria': categoria, 'pergunta_id': pid, 
-                                'pergunta_texto': PERGUNTAS[categoria][pid], 'voto': voto
-                            })
-                        
+                            novos_votos.append({'user_name': st.session_state.user_name, 'empresa': empresa_selecionada, 'categoria': categoria, 'pergunta_id': pid, 'pergunta_texto': PERGUNTAS[categoria][pid], 'voto': voto})
                         df_novos_votos = pd.DataFrame(novos_votos)
                         df_votos_atualizado = pd.concat([df_votos_geral, df_novos_votos], ignore_index=True)
                         df_votos_atualizado.to_csv(ARQUIVO_VOTOS, index=False)
-                        st.success(f"Avaliação para **{empresa_selecionada}** registrada com sucesso! Você pode agora avaliar outra empresa.")
+                        st.success(f"Avaliação para **{empresa_selecionada}** registrada com sucesso!")
                         st.rerun()
 
     with tab_relatorio:
         st.header("Análise de Desempenho dos Fornecedores")
         if df_votos_geral.empty:
-            st.info("Ainda não há votos registrados.")
+            st.info("Ainda não há votos registrados. Use a aba 'VOTAÇÃO' para começar.")
         else:
             df_calculo = df_votos_geral[df_votos_geral['voto'] != 'Não se Aplica'].copy()
             df_calculo['voto'] = pd.to_numeric(df_calculo['voto'])
             media_por_categoria = df_calculo.groupby(['empresa', 'categoria'])['voto'].mean().reset_index()
             media_por_categoria.rename(columns={'voto': 'media_avaliacao'}, inplace=True)
-            
             st.subheader("Gráficos Individuais por Fornecedor")
             empresas_avaliadas = media_por_categoria['empresa'].unique()
             cols = st.columns(3)
@@ -170,7 +232,6 @@ else:
                 fig.update_layout(yaxis_range=[0, 5], xaxis_title=None, yaxis_title="Média", showlegend=False, title_font_size=14, title_x=0.5)
                 with cols[i % 3]:
                     st.plotly_chart(fig, use_container_width=True)
-            
             st.markdown("---")
             st.subheader("Tabela Geral de Médias por Categoria")
             tabela_pivot = media_por_categoria.pivot_table(index='empresa', columns='categoria', values='media_avaliacao').round(2)
@@ -181,7 +242,6 @@ else:
         if not st.session_state.is_admin:
             st.warning("🔒 Acesso Restrito. Apenas administradores podem visualizar esta aba.")
             st.stop()
-
         st.subheader("Resumo de Participação por Usuário")
         if df_votos_geral.empty:
             st.info("Nenhuma participação registrada ainda.")
@@ -191,45 +251,34 @@ else:
                 with st.expander(f"**{row['user_name']}** avaliou **{len(row['empresa'])}** empresa(s)"):
                     for empresa_avaliada in sorted(row['empresa']):
                         st.markdown(f"- {empresa_avaliada}")
-        
         st.markdown("---")
-        
         st.subheader("Administração de Avaliações (Exclusão por Usuário)")
-        st.write("Use esta seção para apagar uma avaliação incorreta feita por um usuário.")
-        
         if not df_votos_geral.empty:
             usuarios_com_voto = sorted(df_votos_geral['user_name'].unique())
             user_selecionado_admin = st.selectbox("1. Selecione o usuário para gerenciar:", usuarios_com_voto, index=None, placeholder="Escolha um usuário...")
-
             if user_selecionado_admin:
                 empresas_avaliadas_pelo_user = sorted(df_votos_geral[df_votos_geral['user_name'] == user_selecionado_admin]['empresa'].unique())
                 empresa_para_apagar = st.selectbox("2. Selecione a avaliação para apagar:", empresas_avaliadas_pelo_user, index=None, placeholder="Escolha uma avaliação...")
-
                 if empresa_para_apagar:
-                    st.warning(f"Atenção: Você está prestes a apagar TODOS os dados da avaliação da empresa **{empresa_para_apagar}** feita pelo usuário **{user_selecionado_admin}**. Esta ação é irreversível.")
-                    if st.button(f"Confirmar Exclusão de Avaliação Individual", type="primary"):
+                    st.warning(f"Atenção: Você está prestes a apagar a avaliação de **{empresa_para_apagar}** feita por **{user_selecionado_admin}**.")
+                    if st.button("Confirmar Exclusão", type="primary"):
                         df_filtrado = df_votos_geral[~((df_votos_geral['user_name'] == user_selecionado_admin) & (df_votos_geral['empresa'] == empresa_para_apagar))]
                         df_filtrado.to_csv(ARQUIVO_VOTOS, index=False)
-                        st.success(f"Avaliação de '{empresa_para_apagar}' por '{user_selecionado_admin}' foi apagada com sucesso.")
+                        st.success("Avaliação apagada com sucesso.")
                         st.rerun()
         else:
-            st.info("Nenhuma avaliação para administrar no momento.")
-
+            st.info("Nenhuma avaliação para administrar.")
         st.markdown("---")
-        st.subheader("Visualizar Todos os Votos Registrados (Dados Brutos)")
+        st.subheader("Visualizar Todos os Votos Registrados")
         st.dataframe(df_votos_geral, use_container_width=True)
-        
         st.markdown("---")
-
-        # NOVO: Seção para apagar todos os dados
         st.subheader("Zona de Perigo: Apagar Todo o Histórico")
-        st.warning("🚨 CUIDADO: O botão abaixo apagará **TODAS AS AVALIAÇÕES DE TODOS OS USUÁRIOS** permanentemente. Esta ação não pode ser desfeita.")
-        
-        if st.checkbox("Eu entendo as consequências e quero apagar todos os dados."):
-            if st.button("APAGAR TODO O HISTÓRICO PERMANENTEMENTE", type="primary"):
+        st.warning("🚨 CUIDADO: Esta ação apagará **TODAS AS AVALIAÇÕES** permanentemente.")
+        if st.checkbox("Eu entendo e quero apagar todos os dados."):
+            if st.button("APAGAR TUDO", type="primary"):
                 if os.path.exists(ARQUIVO_VOTOS):
                     os.remove(ARQUIVO_VOTOS)
-                    st.success("Todo o histórico de votos foi apagado com sucesso!")
+                    st.success("Todo o histórico de votos foi apagado.")
                     st.rerun()
                 else:
                     st.info("Não há dados para apagar.")
