@@ -137,7 +137,7 @@ if not st.session_state.user_name:
 else:
     col1, col2 = st.columns([3, 1])
     with col1:
-        st.title("RELATÓRIO DE VOTAÇÃO DE FORNECEDORES")
+        st.title("RELATÓRIO DE AVALIAÇÃO DE FORNECEDORES")
     with col2:
         st.image("assets/banner_votacao.jpg", width=250) 
     st.sidebar.image("assets/logo_sidebar.png")
