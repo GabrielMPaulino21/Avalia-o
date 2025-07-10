@@ -5,6 +5,7 @@ import plotly.express as px
 from PIL import Image
 import base64
 import time
+import openpyxl
 
 # --- FUNÇÃO PARA CODIFICAR IMAGEM (PARA O PLANO DE FUNDO) ---
 @st.cache_data
@@ -25,7 +26,7 @@ def set_png_as_page_bg(png_file):
     page_bg_img = f'''
     <style>
     .stApp {{
-        background-image: url("data:image/jpeg;base64,{bin_str}");
+        background-image: url("data:image/png;base64,{bin_str}");
         background-size: cover;
         background-repeat: no-repeat;
         background-attachment: scroll;
@@ -48,6 +49,11 @@ st.set_page_config(
 )
 
 # --- DADOS E CONSTANTES ---
+ARQUIVO_VOTOS = 'votos.csv'
+# Caminho relativo para o arquivo Excel com a lista de projetos.
+# O arquivo BUSCAR_LCP.xlsx deve estar na mesma pasta que este script.
+ARQUIVO_PROJETOS = "BUSCAR_LCP.xlsx" 
+
 ADMIN_KEYS = [('gabriel', 'paulino'), ('rodrigo', 'saito')]
 EMPRESAS = [
     "ABSAFE ENGENHARIA E SEGURANCA", "ASSESSORIA TECNICA ATENE LTDA", "ATUS ENGENHARIA LDA", "BECOMEX CONSULTORIA LTDA",
@@ -74,7 +80,6 @@ PERGUNTAS = {
     "DOCUMENTATION": { "4.1": "Supplier is following accordinly with SAM system requirements (evidences like schedules, measurements, pictures, reports, ART)", "4.2": "Suppliers delivery all the documentation (Company and employees) on time, according to the plan.", "4.3": "Suppliers deliver all the project documentation required (Ex: As Built, Drawings, Data sheets, Manuals, etc)." }
 }
 OPCOES_VOTO = ['1', '2', '3', '4', '5', 'N/A']
-ARQUIVO_VOTOS = 'votos.csv'
 
 RUBRICA = {
     "SAFETY": {
@@ -111,6 +116,40 @@ def carregar_votos():
     else:
         return pd.DataFrame(columns=['user_name', 'projeto', 'empresa', 'categoria', 'pergunta_id', 'pergunta_texto', 'voto'])
 
+@st.cache_data
+def carregar_projetos(caminho_arquivo):
+    """Lê as abas do arquivo Excel, concatena as colunas e retorna uma lista única de projetos LCP."""
+    try:
+        df_capex = pd.read_excel(caminho_arquivo, sheet_name="Capex", header=3)
+        df_ame = pd.read_excel(caminho_arquivo, sheet_name="AME - Quarterly", header=3)
+
+        projetos_capex = []
+        if 'WBS' in df_capex.columns and 'PROJECT NAME' in df_capex.columns:
+            df_capex.dropna(subset=['WBS', 'PROJECT NAME'], inplace=True)
+            projetos_capex = (df_capex['WBS'].astype(str) + " - " + df_capex['PROJECT NAME'].astype(str)).tolist()
+
+        projetos_ame = []
+        if 'WBS' in df_ame.columns and 'PROJECT NAME' in df_ame.columns:
+            df_ame.dropna(subset=['WBS', 'PROJECT NAME'], inplace=True)
+            projetos_ame = (df_ame['WBS'].astype(str) + " - " + df_ame['PROJECT NAME'].astype(str)).tolist()
+
+        todos_projetos = projetos_capex + projetos_ame
+
+        # Filtra a lista para manter apenas os projetos que começam com "LCP"
+        projetos_lcp = [proj for proj in todos_projetos if proj.strip().startswith("LCP")]
+
+        # Remove duplicatas e ordena a lista final
+        projetos_finais = sorted(list(set(projetos_lcp)))
+        
+        return projetos_finais
+
+    except FileNotFoundError:
+        st.error(f"ERRO: O arquivo de projetos não foi encontrado em '{caminho_arquivo}'. Verifique se ele está na mesma pasta do script.")
+        return ["ERRO: Arquivo de projetos não encontrado"]
+    except Exception as e:
+        st.error(f"Ocorreu um erro ao processar o arquivo de projetos: {e}")
+        return [f"ERRO: {e}"]
+
 # --- GERENCIAMENTO DE ESTADO ---
 if 'user_name' not in st.session_state:
     st.session_state.user_name = None
@@ -135,11 +174,16 @@ if not st.session_state.user_name:
                 st.error("Por favor, insira seu nome para continuar.")
 
 else:
+    # Carrega a lista de projetos LCP do arquivo Excel
+    lista_projetos_lcp = carregar_projetos(ARQUIVO_PROJETOS)
+
     col1, col2 = st.columns([3, 1])
     with col1:
-        st.title("RELATÓRIO DE AVALIAÇÃO DE FORNECEDORES")
+        st.title("RELATÓRIO DE VOTAÇÃO DE FORNECEDORES")
     with col2:
-        st.image("assets/banner_votacao.jpg", width=250) 
+        if os.path.exists("assets/banner_votacao.jpg"):
+            st.image("assets/banner_votacao.jpg", width=250) 
+            
     st.sidebar.image("assets/logo_sidebar.png")
     st.sidebar.success(f"Logado como:\n**{st.session_state.user_name}**")
     if st.session_state.is_admin:
@@ -149,7 +193,6 @@ else:
         st.session_state.is_admin = False
         st.rerun()
 
-    # GARANTINDO QUE A ABA DE CRITÉRIOS ESTÁ AQUI
     tab_votacao, tab_projetos, tab_relatorio, tab_dados, tab_criterios = st.tabs([
         "📝 NOVA AVALIAÇÃO", 
         "📂 PROJETOS AVALIADOS",
@@ -160,10 +203,17 @@ else:
     df_votos_geral = carregar_votos()
     
     with tab_votacao:
-        st.header(f"Registrar Nova Avaliação de Projeto")
-        st.info("Preencha o projeto, o fornecedor e responda às perguntas para registrar uma nova avaliação.")
+        st.header("Registrar Nova Avaliação de Projeto")
+        st.info("Selecione o projeto, o fornecedor e responda às perguntas para registrar uma nova avaliação.")
         with st.form(key="form_nova_avaliacao", clear_on_submit=True):
-            projeto = st.text_input("Nome ou Número do Projeto*")
+            
+            projeto = st.selectbox(
+                "Projeto*", 
+                options=lista_projetos_lcp,
+                index=None,
+                placeholder="Selecione um projeto LCP da lista..."
+            )
+            
             empresa_selecionada = st.selectbox("Fornecedor*", options=EMPRESAS, index=None, placeholder="Escolha uma empresa...")
             st.markdown("---")
             respostas = {}
@@ -173,10 +223,11 @@ else:
                     st.markdown(f"#### {categoria}")
                     for pid, ptexto in perguntas_categoria.items():
                         respostas[f"{categoria}_{pid}"] = st.radio(f"**{pid}** - {ptexto}", OPCOES_VOTO, horizontal=True, key=f"vote_{projeto}_{empresa_selecionada}_{pid}")
+            
             submitted = st.form_submit_button("Registrar Avaliação")
             if submitted:
                 if not projeto or not empresa_selecionada:
-                    st.error("Por favor, preencha o nome do Projeto e selecione um Fornecedor.")
+                    st.error("Por favor, selecione um Projeto e um Fornecedor.")
                 else:
                     ja_votou = not df_votos_geral[(df_votos_geral['user_name'] == st.session_state.user_name) & (df_votos_geral['empresa'] == empresa_selecionada) & (df_votos_geral['projeto'] == projeto)].empty
                     if ja_votou:
@@ -204,10 +255,11 @@ else:
         if df_votos_geral.empty:
             st.info("Ainda não há votos registrados.")
         else:
-            lista_projetos = ["Todos os Projetos"] + sorted(df_votos_geral['projeto'].unique().tolist())
-            projeto_filtrado = st.selectbox("Filtrar por Projeto:", lista_projetos)
+            lista_projetos_filtro = ["Todos os Projetos"] + sorted(df_votos_geral['projeto'].unique().tolist())
+            projeto_filtrado = st.selectbox("Filtrar por Projeto:", lista_projetos_filtro)
+            
             df_filtrado = df_votos_geral if projeto_filtrado == "Todos os Projetos" else df_votos_geral[df_votos_geral['projeto'] == projeto_filtrado]
-            df_calculo = df_filtrado[df_filtrado['voto'] != 'Não se Aplica'].copy()
+            df_calculo = df_filtrado[df_filtrado['voto'] != 'N/A'].copy()
             df_calculo['voto'] = pd.to_numeric(df_calculo['voto'])
             media_por_categoria = df_calculo.groupby(['empresa', 'categoria'])['voto'].mean().reset_index()
             media_por_categoria.rename(columns={'voto': 'media_avaliacao'}, inplace=True)
@@ -241,7 +293,7 @@ else:
                 with st.expander(f"**Usuário:** {user_name}"):
                     projetos_do_usuario = user_df.groupby('projeto')['empresa'].unique()
                     for proj, emps in projetos_do_usuario.items():
-                        st.markdown(f"  - **Projeto:** {proj} | **Empresas:** {', '.join(sorted(emps))}")
+                        st.markdown(f"   - **Projeto:** {proj} | **Empresas:** {', '.join(sorted(emps))}")
         st.markdown("---")
         st.subheader("Administração de Avaliações")
         if not df_votos_geral.empty:
