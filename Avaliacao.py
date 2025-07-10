@@ -76,14 +76,39 @@ PERGUNTAS = {
 OPCOES_VOTO = ['1', '2', '3', '4', '5', 'Não se Aplica']
 ARQUIVO_VOTOS = 'votos.csv'
 
+RUBRICA = {
+    "SAFETY": {
+        "1.1": ["1 OSHA Accident", "1 Serious Accident and 0 OSHA Accident", "0 Accident and 2 or more near miss", "0 Accident and 1 near miss", "0 near miss / accidents"],
+        "1.2": ["rarely shows commitment with LTR and PPTs, needs constants improvements and guidances", "sometimes shows commitment with LTR and PPTs, but still needs improvements and guidances.", "shows commitment with LTR and PPTs, requiring punctual orientations.", "Often shows commitment with LTR and PPTs, sharing best practices and process improvements to contributes with safety.", "shows fully commitment with LTR and PPTs, being a partner to the safety and a benchmarking for other companies."],
+        "1.3": ["rarely delivery to the EHS on time, needs constants improvements and guidances", "sometimes delivery to the EHS on time, but still needs improvements and guidances.", "delivery to the EHS on time, requiring punctual orientations.", "Often delivery to the EHS on time, sharing best practices and process improvements to contributes with safety.", "shows fully commitment to delivery on time, being a partner to the safety and a benchmarking for other companies."],
+        "1.4": ["rarely leadership is present on the job", "sometimes leadership is present on the job, but still needs improvements and guidances.", "leadership is present on the job, requiring punctual orientations.", "Often leadership is present on the job, providing technical support and safety conditions to their associates.", "shows fully commitment to provide leadership full time by service, being a benchmarking for other companies."],
+        "1.5": ["rarely shows commitment with objectives and procedures, needs constants improvements and guidances", "sometimes shows commitment with objectives and procedures, but still needs improvements and guidances.", "shows commitment with objectives and procedures, requiring punctual orientations.", "Often shows commitment with objectives and procedures, sharing best practices and process improvements to contributes with business success.", "shows fully commitment with objectives and procedures, being a partner to the business and a benchmarking for other companies."]
+    },
+    "QUALITY": {
+        "2.1": ["rarely shows commitment to delivery on time, needs constants improvements and guidances", "sometimes shows commitment to delivery on time, but still needs improvements and guidances.", "shows commitment to delivery on time, requiring punctual orientations.", "Often shows commitment to delivery on time, applying proactive actions to mitigate delays.", "shows fully commitment to delivery on time, being a partner to the business and a benchmarking for other companies."],
+        "2.2": ["rarely shows commitment to execute services according to design, needs constants improvements and guidances", "sometimes shows commitment to execute services according to design, but still needs improvements and guidances.", "shows commitment to execute services according to design, requiring punctual orientations.", "Often shows commitment to execute services according to design, avoiding reworks.", "shows fully commitment to execute services according to design, avoiding reworks and being a benchmarking for other companies."],
+        "2.3": ["rarely shows commitment with housekeeping, needs constants improvements and guidances", "sometimes shows commitment with housekeeping, but still needs improvements and guidances.", "shows commitment with housekeeping, requiring punctual orientations.", "Often shows commitment with housekeeping, sharing best practices to contributes with safety.", "shows fully commitment with housekeeping, being a partner to the safety and a benchmarking for other companies."],
+        "2.4": ["rarely shows commitment to provide tools and personal protection according to standards, needs constants improvements and guidances", "sometimes shows commitment to provide tools and personal protection according to standards, but still needs improvements and guidances.", "shows commitment to provide tools and personal protection according to standards, requiring punctual orientations.", "Often shows commitment to provide tools and personal protection according to standards, providing safety conditions to their associates.", "shows fully commitment to provide tools and personal protection according to standards, providing safety conditions to their associates and being a benchmarking for other companies."],
+        "2.5": ["Overcost > 21%", "15% < Overcost < 20%", "10% < Overcost < 0%", "0%", "Deliver the project with saving"]
+    },
+    "PEOPLE": {
+        "3.1": ["rarely shows commitment to provide resources according to service complexity, needs constants improvements and guidances", "sometimes shows commitment to provide resources according to service complexity, but still needs improvements and guidances.", "shows commitment to provide resources according to service complexity, requiring punctual orientations.", "Often shows commitment to provide resources according to service complexity, with flexibility to mobilize resources quickly in order to avoid any impacts for the business.", "shows fully commitment with objectives and procedures, providing resources according to service complexity, with flexibility to mobilize resources quickly in order to avoid any impacts for the business, being a partner to the business and a benchmarking for other companies."],
+        "3.2": ["Full team (leadership and operational) shows low level of qualification, needs replacement.", "operational team are fully dependent of leadership to execute the service, needs improvements.", "shows commitment to provide resources according to service complexity, requiring punctual orientations.", "Often shows commitment to provide resources according to service complexity and requested qualification, presenting plans of development in order to avoid any impacts for the business.", "shows fully commitment with objectives and procedures, providing resources according to service complexity and high qualification of resources required."],
+        "3.3": ["rarely leadership is present on the job", "sometimes leadership is present on the job, but still needs improvements and guidances.", "leadership is present on the job, requiring punctual orientations.", "Often leadership is present on the job, providing technical support and safety conditions to their associates.", "shows fully commitment to provide leadership full time by service, being a benchmarking for other companies."]
+    },
+    "DOCUMENTATION": {
+        "4.1": ["rarely shows commitment to provide adequate evidences, needs constants improvements and guidances", "sometimes shows commitment to provide adequate evidences, but still needs improvements and guidances.", "shows commitment to provide to provide adequate evidences, requiring punctual orientations.", "Often shows commitment to provide adequate evidences, sharing best practices and process improvements to contributes with business success.", "shows fully commitment to provide adequate evidences, being a partner to the business and a benchmarking for other companies."],
+        "4.2": ["More than 30 days of delay comparing to the plan, to deliver all the documentation", "More than 15 days of delay comparing to the plan, to deliver all the documentation", "Maximum of 5 days of delay comparing to the plan, to deliver all the documentation", "Deliver all the documentation on time, comparing to the plan.", "Deliver all the documentation anticipated"],
+        "4.3": ["do not deliver the project documentation according to the contract / scope of work.", "missing no critical project documentation", "deliver all the project documentation according to the contract / scope of work", "deliver more project documentation than requested", "exceed the deliver expectatives"]
+    }
+}
+
 
 # --- FUNÇÕES DE DADOS ---
 def carregar_votos():
     if os.path.exists(ARQUIVO_VOTOS):
-        # Garante que o pandas leia a coluna 'projeto' como string
         return pd.read_csv(ARQUIVO_VOTOS, dtype={'projeto': str})
     else:
-        # Nova coluna 'projeto'
         return pd.DataFrame(columns=['user_name', 'projeto', 'empresa', 'categoria', 'pergunta_id', 'pergunta_texto', 'voto'])
 
 # --- GERENCIAMENTO DE ESTADO ---
@@ -93,7 +118,6 @@ if 'user_name' not in st.session_state:
 
 # --- LÓGICA DE EXIBIÇÃO ---
 
-# Se o usuário não está logado, mostra a tela de login
 if not st.session_state.user_name:
     set_png_as_page_bg('assets/login_fundo.jpg')
     st.markdown("""<style> h1, label { color: black !important; background-color: rgba(255, 255, 255, 0.7); padding: 10px; border-radius: 10px; font-weight: bold !important; } </style>""", unsafe_allow_html=True)
@@ -110,9 +134,7 @@ if not st.session_state.user_name:
             else:
                 st.error("Por favor, insira seu nome para continuar.")
 
-# Se já está logado, mostra o app principal
 else:
-    # --- APLICAÇÃO PRINCIPAL ---
     col1, col2 = st.columns([3, 1])
     with col1:
         st.title("RELATÓRIO DE VOTAÇÃO DE FORNECEDORES")
@@ -127,56 +149,40 @@ else:
         st.session_state.is_admin = False
         st.rerun()
 
-    tab_votacao, tab_projetos, tab_relatorio, tab_dados = st.tabs([
+    # GARANTINDO QUE A ABA DE CRITÉRIOS ESTÁ AQUI
+    tab_votacao, tab_projetos, tab_relatorio, tab_dados, tab_criterios = st.tabs([
         "📝 NOVA AVALIAÇÃO", 
         "📂 PROJETOS AVALIADOS",
         "📊 RELATÓRIO DE MÉDIAS", 
-        "⚙️ DADOS E ADMINISTRAÇÃO"
+        "⚙️ DADOS E ADMINISTRAÇÃO",
+        "📘 CRITÉRIOS DE AVALIAÇÃO"
     ])
     df_votos_geral = carregar_votos()
     
     with tab_votacao:
         st.header(f"Registrar Nova Avaliação de Projeto")
-        st.write("Preencha o projeto e o fornecedor para iniciar uma nova avaliação.")
-        st.markdown("---")
-
+        st.info("Preencha o projeto, o fornecedor e responda às perguntas para registrar uma nova avaliação.")
         with st.form(key="form_nova_avaliacao", clear_on_submit=True):
-            # NOVO CAMPO DE PROJETO
-            projeto = st.text_input("Nome ou Número do Projeto*", help="Este campo é obrigatório.")
+            projeto = st.text_input("Nome ou Número do Projeto*")
             empresa_selecionada = st.selectbox("Fornecedor*", options=EMPRESAS, index=None, placeholder="Escolha uma empresa...")
-            
             st.markdown("---")
-            
             respostas = {}
-            # O formulário de perguntas agora é dinâmico
             if projeto and empresa_selecionada:
                 st.subheader(f"Avaliação para: {empresa_selecionada} (Projeto: {projeto})")
                 for categoria, perguntas_categoria in PERGUNTAS.items():
                     st.markdown(f"#### {categoria}")
                     for pid, ptexto in perguntas_categoria.items():
                         respostas[f"{categoria}_{pid}"] = st.radio(f"**{pid}** - {ptexto}", OPCOES_VOTO, horizontal=True, key=f"vote_{projeto}_{empresa_selecionada}_{pid}")
-            
             submitted = st.form_submit_button("Registrar Avaliação")
             if submitted:
                 if not projeto or not empresa_selecionada:
                     st.error("Por favor, preencha o nome do Projeto e selecione um Fornecedor.")
                 else:
-                    # NOVA VERIFICAÇÃO DE VOTO ÚNICO
-                    ja_votou = not df_votos_geral[
-                        (df_votos_geral['user_name'] == st.session_state.user_name) &
-                        (df_votos_geral['empresa'] == empresa_selecionada) &
-                        (df_votos_geral['projeto'] == projeto)
-                    ].empty
+                    ja_votou = not df_votos_geral[(df_votos_geral['user_name'] == st.session_state.user_name) & (df_votos_geral['empresa'] == empresa_selecionada) & (df_votos_geral['projeto'] == projeto)].empty
                     if ja_votou:
                         st.error(f"Você já avaliou a empresa '{empresa_selecionada}' para o projeto '{projeto}'.")
                     else:
-                        novos_votos = []
-                        for chave, voto in respostas.items():
-                            categoria, pid = chave.split('_')
-                            novos_votos.append({
-                                'user_name': st.session_state.user_name, 'projeto': projeto, 'empresa': empresa_selecionada, 
-                                'categoria': categoria, 'pergunta_id': pid, 'pergunta_texto': PERGUNTAS[categoria][pid], 'voto': voto
-                            })
+                        novos_votos = [{'user_name': st.session_state.user_name, 'projeto': projeto, 'empresa': empresa_selecionada, 'categoria': c.split('_')[0], 'pergunta_id': c.split('_')[1], 'pergunta_texto': PERGUNTAS[c.split('_')[0]][c.split('_')[1]], 'voto': v} for c, v in respostas.items()]
                         df_novos_votos = pd.DataFrame(novos_votos)
                         df_votos_atualizado = pd.concat([df_votos_geral, df_novos_votos], ignore_index=True)
                         df_votos_atualizado.to_csv(ARQUIVO_VOTOS, index=False)
@@ -187,7 +193,6 @@ else:
         if df_votos_geral.empty:
             st.info("Nenhuma avaliação de projeto foi registrada ainda.")
         else:
-            # Agrupa por projeto e mostra as empresas avaliadas em cada um
             projetos_avaliados = df_votos_geral.groupby('projeto')['empresa'].unique()
             for nome_projeto, empresas_no_projeto in projetos_avaliados.items():
                 with st.expander(f"**Projeto:** {nome_projeto} ({len(empresas_no_projeto)} empresa(s) avaliada(s))"):
@@ -199,19 +204,13 @@ else:
         if df_votos_geral.empty:
             st.info("Ainda não há votos registrados.")
         else:
-            # NOVO FILTRO DE PROJETO
             lista_projetos = ["Todos os Projetos"] + sorted(df_votos_geral['projeto'].unique().tolist())
             projeto_filtrado = st.selectbox("Filtrar por Projeto:", lista_projetos)
-
-            df_filtrado = df_votos_geral.copy()
-            if projeto_filtrado != "Todos os Projetos":
-                df_filtrado = df_votos_geral[df_votos_geral['projeto'] == projeto_filtrado]
-            
+            df_filtrado = df_votos_geral if projeto_filtrado == "Todos os Projetos" else df_votos_geral[df_votos_geral['projeto'] == projeto_filtrado]
             df_calculo = df_filtrado[df_filtrado['voto'] != 'Não se Aplica'].copy()
             df_calculo['voto'] = pd.to_numeric(df_calculo['voto'])
             media_por_categoria = df_calculo.groupby(['empresa', 'categoria'])['voto'].mean().reset_index()
             media_por_categoria.rename(columns={'voto': 'media_avaliacao'}, inplace=True)
-            
             st.subheader("Gráficos Individuais por Fornecedor")
             empresas_avaliadas = media_por_categoria['empresa'].unique()
             if not empresas_avaliadas.any():
@@ -234,8 +233,6 @@ else:
         if not st.session_state.is_admin:
             st.warning("🔒 Acesso Restrito. Apenas administradores podem visualizar esta aba.")
             st.stop()
-        
-        # ADMIN: Resumo de Participação Atualizado
         st.subheader("Resumo de Participação por Usuário")
         if df_votos_geral.empty:
             st.info("Nenhuma participação registrada ainda.")
@@ -244,33 +241,27 @@ else:
                 with st.expander(f"**Usuário:** {user_name}"):
                     projetos_do_usuario = user_df.groupby('projeto')['empresa'].unique()
                     for proj, emps in projetos_do_usuario.items():
-                        st.markdown(f"  - **Projeto:** {proj}")
-                        for emp in sorted(emps):
-                            st.markdown(f"    - *Empresa:* {emp}")
-
+                        st.markdown(f"  - **Projeto:** {proj} | **Empresas:** {', '.join(sorted(emps))}")
         st.markdown("---")
-        # ADMIN: Exclusão Atualizada
         st.subheader("Administração de Avaliações")
         if not df_votos_geral.empty:
             usuarios_com_voto = sorted(df_votos_geral['user_name'].unique())
             user_selecionado_admin = st.selectbox("1. Selecione o usuário:", usuarios_com_voto, index=None)
             if user_selecionado_admin:
-                projetos_do_usuario = sorted(df_votos_geral[df_votos_geral['user_name'] == user_selecionado_admin]['projeto'].unique())
-                projeto_para_apagar = st.selectbox("2. Selecione o projeto:", projetos_do_usuario, index=None)
-                if projeto_para_apagar:
-                    st.warning(f"Você está prestes a apagar a avaliação do projeto **{projeto_para_apagar}** feita por **{user_selecionado_admin}**.")
+                avaliacoes_do_usuario = df_votos_geral[df_votos_geral['user_name'] == user_selecionado_admin][['projeto', 'empresa']].drop_duplicates().to_records(index=False)
+                avaliacao_para_apagar = st.selectbox("2. Selecione a avaliação para apagar:", [f"Projeto: {p} | Empresa: {e}" for p, e in avaliacoes_do_usuario], index=None)
+                if avaliacao_para_apagar:
+                    projeto_apagar = avaliacao_para_apagar.split(' | ')[0].replace('Projeto: ', '')
+                    empresa_apagar = avaliacao_para_apagar.split(' | ')[1].replace('Empresa: ', '')
+                    st.warning(f"Você está prestes a apagar a avaliação do projeto '{projeto_apagar}' para a empresa '{empresa_apagar}'.")
                     if st.button("Confirmar Exclusão da Avaliação", type="primary"):
-                        df_final = df_votos_geral[~((df_votos_geral['user_name'] == user_selecionado_admin) & (df_votos_geral['projeto'] == projeto_para_apagar))]
+                        df_final = df_votos_geral[~((df_votos_geral['user_name'] == user_selecionado_admin) & (df_votos_geral['projeto'] == projeto_apagar) & (df_votos_geral['empresa'] == empresa_apagar))]
                         df_final.to_csv(ARQUIVO_VOTOS, index=False)
                         st.success("Avaliação apagada com sucesso.")
                         st.rerun()
-        else:
-            st.info("Nenhuma avaliação para administrar.")
-            
         st.markdown("---")
         st.subheader("Visualizar Todos os Votos Registrados")
         st.dataframe(df_votos_geral, use_container_width=True)
-        
         st.markdown("---")
         st.subheader("Zona de Perigo: Apagar Todo o Histórico")
         st.warning("🚨 CUIDADO: Esta ação apagará **TODAS AS AVALIAÇÕES** permanentemente.")
@@ -280,3 +271,18 @@ else:
                     os.remove(ARQUIVO_VOTOS)
                     st.success("Todo o histórico de votos foi apagado.")
                     st.rerun()
+
+    with tab_criterios:
+        st.header("📘 Guia de Critérios para Avaliação")
+        st.info("Use esta guia para consultar o que cada nota significa para cada pergunta específica.")
+        legenda_geral = {"Nota": ["1", "2", "3", "4", "5"], "Significado": ["Needs improvement", "Meets partially the expectations", "Meets the expectations", "Exceed partially the expectations", "Exceed the expectations"]}
+        st.table(pd.DataFrame(legenda_geral).set_index('Nota'))
+        st.markdown("---")
+        for categoria, perguntas in PERGUNTAS.items():
+            with st.expander(f"Critérios para a Categoria: **{categoria}**"):
+                for pid, ptexto in perguntas.items():
+                    st.markdown(f"##### Pergunta {pid}: {ptexto}")
+                    if categoria in RUBRICA and pid in RUBRICA[categoria]:
+                        st.table(pd.DataFrame({'Nota': [1, 2, 3, 4, 5], 'Descrição do Critério': RUBRICA[categoria][pid]}).set_index('Nota'))
+                    else:
+                        st.warning("Critérios para esta pergunta não definidos.")
