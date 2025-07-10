@@ -73,7 +73,7 @@ PERGUNTAS = {
     "PEOPLE": { "3.1": "Crew sizing according to approved contracts", "3.2": "Workteam knowledge meet the minimum technical requirements", "3.3": "Leadership - Supervisors is on work execution" },
     "DOCUMENTATION": { "4.1": "Supplier is following accordinly with SAM system requirements (evidences like schedules, measurements, pictures, reports, ART)", "4.2": "Suppliers delivery all the documentation (Company and employees) on time, according to the plan.", "4.3": "Suppliers deliver all the project documentation required (Ex: As Built, Drawings, Data sheets, Manuals, etc)." }
 }
-OPCOES_VOTO = ['1', '2', '3', '4', '5', 'Não se Aplica']
+OPCOES_VOTO = ['1', '2', '3', '4', '5', 'N/A']
 ARQUIVO_VOTOS = 'votos.csv'
 
 RUBRICA = {
