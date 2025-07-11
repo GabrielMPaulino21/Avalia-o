@@ -19,7 +19,6 @@ def get_base64_of_bin_file(bin_file):
 def set_png_as_page_bg(png_file):
     bin_str = get_base64_of_bin_file(png_file)
     if bin_str is None:
-        # Silenciei o erro para não aparecer no deploy se a imagem de fundo não for usada
         return
         
     page_bg_img = f'''
@@ -167,9 +166,7 @@ if not st.session_state.user_name:
                 st.error("Por favor, insira seu nome para continuar.")
 
 else:
-    # --- NOVO --- Aplica o fundo escuro na página principal (opcional, pode remover se não quiser)
     set_png_as_page_bg('assets/main_background.png')
-
     lista_projetos_lcp = carregar_projetos(ARQUIVO_PROJETOS)
 
     col1, col2 = st.columns([3, 1])
@@ -188,7 +185,18 @@ else:
         st.session_state.is_admin = False
         st.rerun()
 
-    # --- MODIFICADO --- Removida a aba de critérios
+    # --- NOVO --- Adiciona os créditos no final da barra lateral
+    st.sidebar.markdown("---") 
+    st.sidebar.markdown(
+        """
+        <div style="text-align: center; font-size: 0.9em; color: #CCC;">
+            Desenvolvido por<br>
+            <strong>GABRIEL PAULINO</strong>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
     tab_votacao, tab_projetos, tab_relatorio, tab_dados = st.tabs([
         "📝 NOVA AVALIAÇÃO", 
         "📂 PROJETOS AVALIADOS",
@@ -215,23 +223,19 @@ else:
             if projeto and empresa_selecionada:
                 st.subheader(f"Avaliação para: {empresa_selecionada} (Projeto: {projeto})")
                 
-                # --- NOVO --- Lógica para exibir os critérios em um pop-up
                 for categoria, perguntas_categoria in PERGUNTAS.items():
-                    # Layout para o título da categoria e o botão de critérios
                     col_titulo, col_botao = st.columns([3, 1])
                     
                     with col_titulo:
                         st.markdown(f"#### {categoria}")
                     
                     with col_botao:
-                        # O st.popover cria um botão que abre uma janela flutuante
                         with st.popover(f"📘 Ver Critérios de {categoria}"):
                             st.markdown(f"### Critérios para: **{categoria}**")
                             legenda_geral = {"Nota": ["1", "2", "3", "4", "5"], "Significado": ["Needs improvement", "Meets partially the expectations", "Meets the expectations", "Exceed partially the expectations", "Exceed the expectations"]}
                             st.table(pd.DataFrame(legenda_geral).set_index('Nota'))
                             st.markdown("---")
 
-                            # Mostra a rubrica específica para cada pergunta da categoria
                             for pid, ptexto in perguntas_categoria.items():
                                 st.markdown(f"##### Pergunta {pid}: {ptexto}")
                                 if categoria in RUBRICA and pid in RUBRICA[categoria]:
@@ -239,7 +243,6 @@ else:
                                 else:
                                     st.warning("Critérios para esta pergunta não definidos.")
 
-                    # Loop para exibir as perguntas e os radio buttons
                     for pid, ptexto in perguntas_categoria.items():
                         respostas[f"{categoria}_{pid}"] = st.radio(
                             f"**{pid}** - {ptexto}", 
@@ -247,7 +250,7 @@ else:
                             horizontal=True, 
                             key=f"vote_{projeto}_{empresa_selecionada}_{pid}"
                         )
-                    st.divider() # Adiciona uma linha divisória entre as categorias
+                    st.divider()
             
             submitted = st.form_submit_button("Registrar Avaliação")
             if submitted:
