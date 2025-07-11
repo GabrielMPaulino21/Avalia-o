@@ -6,6 +6,9 @@ from PIL import Image
 import base64
 import time
 
+# ... (todo o resto do seu código, que está correto, permanece o mesmo) ...
+# A única mudança está na linha "with st.form(...)"
+
 # --- FUNÇÃO PARA CODIFICAR IMAGEM (PARA O PLANO DE FUNDO) ---
 @st.cache_data
 def get_base64_of_bin_file(bin_file):
@@ -114,7 +117,6 @@ def carregar_votos():
 
 @st.cache_data
 def carregar_projetos(caminho_arquivo):
-    """Lê as abas do arquivo Excel, concatena as colunas e retorna uma lista única de projetos LCP."""
     try:
         df_capex = pd.read_excel(caminho_arquivo, sheet_name="Capex", header=3)
         df_ame = pd.read_excel(caminho_arquivo, sheet_name="AME - Quarterly", header=3)
@@ -171,7 +173,8 @@ else:
 
     col1, col2 = st.columns([3, 1])
     with col1:
-        st.title("RELATÓRIO DE VOTAÇÃO DE FORNECEDORES")
+        st.title("RELATÓRIO DE AVALIAÇÃO DE FORNECEDORES")
+        st.info("ENGENHARIA DE PROJETOS")
     with col2:
         if os.path.exists("assets/banner_votacao.jpg"):
             st.image("assets/banner_votacao.jpg", width=250) 
@@ -185,7 +188,6 @@ else:
         st.session_state.is_admin = False
         st.rerun()
 
-    # --- NOVO --- Adiciona os créditos no final da barra lateral
     st.sidebar.markdown("---") 
     st.sidebar.markdown(
         """
@@ -208,7 +210,9 @@ else:
     with tab_votacao:
         st.header(f"Registrar Nova Avaliação de Projeto")
         st.info("Selecione o projeto, o fornecedor e responda às perguntas para registrar uma nova avaliação.")
-        with st.form(key="form_nova_avaliacao", clear_on_submit=True):
+        
+        # --- LINHA CORRIGIDA --- Removido o clear_on_submit=True
+        with st.form(key="form_nova_avaliacao"):
             
             projeto = st.selectbox(
                 "Projeto*", 
@@ -219,6 +223,8 @@ else:
             
             empresa_selecionada = st.selectbox("Fornecedor*", options=EMPRESAS, index=None, placeholder="Escolha uma empresa...")
             st.markdown("---")
+            
+            # O dicionário 'respostas' agora é populado confiavelmente
             respostas = {}
             if projeto and empresa_selecionada:
                 st.subheader(f"Avaliação para: {empresa_selecionada} (Projeto: {projeto})")
@@ -261,11 +267,16 @@ else:
                     if ja_votou:
                         st.error(f"Você já avaliou a empresa '{empresa_selecionada}' para o projeto '{projeto}'.")
                     else:
+                        # Esta lógica agora funciona porque o 'respostas' é preenchido corretamente
                         novos_votos = [{'user_name': st.session_state.user_name, 'projeto': projeto, 'empresa': empresa_selecionada, 'categoria': c.split('_')[0], 'pergunta_id': c.split('_')[1], 'pergunta_texto': PERGUNTAS[c.split('_')[0]][c.split('_')[1]], 'voto': v} for c, v in respostas.items()]
                         df_novos_votos = pd.DataFrame(novos_votos)
                         df_votos_atualizado = pd.concat([df_votos_geral, df_novos_votos], ignore_index=True)
                         df_votos_atualizado.to_csv(ARQUIVO_VOTOS, index=False)
                         st.success(f"Avaliação para o projeto '{projeto}' registrada com sucesso!")
+                        # Opcional: Adicionar um pequeno delay e st.rerun() para simular a limpeza
+                        time.sleep(1)
+                        st.rerun()
+
 
     with tab_projetos:
         st.header("Visão Geral de Projetos Avaliados")
@@ -291,6 +302,7 @@ else:
             df_calculo['voto'] = pd.to_numeric(df_calculo['voto'])
             media_por_categoria = df_calculo.groupby(['empresa', 'categoria'])['voto'].mean().reset_index()
             media_por_categoria.rename(columns={'voto': 'media_avaliacao'}, inplace=True)
+            
             st.subheader("Gráficos Individuais por Fornecedor")
             empresas_avaliadas = media_por_categoria['empresa'].unique()
             if not empresas_avaliadas.any():
