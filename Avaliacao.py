@@ -5,7 +5,6 @@ import plotly.express as px
 from PIL import Image
 import base64
 import time
-import openpyxl
 
 # --- FUNÇÃO PARA CODIFICAR IMAGEM (PARA O PLANO DE FUNDO) ---
 @st.cache_data
@@ -20,7 +19,7 @@ def get_base64_of_bin_file(bin_file):
 def set_png_as_page_bg(png_file):
     bin_str = get_base64_of_bin_file(png_file)
     if bin_str is None:
-        st.error(f"Arquivo de imagem de fundo não encontrado em '{png_file}'. Verifique a pasta 'assets'.")
+        # Silenciei o erro para não aparecer no deploy se a imagem de fundo não for usada
         return
         
     page_bg_img = f'''
@@ -50,8 +49,6 @@ st.set_page_config(
 
 # --- DADOS E CONSTANTES ---
 ARQUIVO_VOTOS = 'votos.csv'
-# Caminho relativo para o arquivo Excel com a lista de projetos.
-# O arquivo BUSCAR_LCP.xlsx deve estar na mesma pasta que este script.
 ARQUIVO_PROJETOS = "BUSCAR_LCP.xlsx" 
 
 ADMIN_KEYS = [('gabriel', 'paulino'), ('rodrigo', 'saito')]
@@ -134,11 +131,7 @@ def carregar_projetos(caminho_arquivo):
             projetos_ame = (df_ame['WBS'].astype(str) + " - " + df_ame['PROJECT NAME'].astype(str)).tolist()
 
         todos_projetos = projetos_capex + projetos_ame
-
-        # Filtra a lista para manter apenas os projetos que começam com "LCP"
         projetos_lcp = [proj for proj in todos_projetos if proj.strip().startswith("LCP")]
-
-        # Remove duplicatas e ordena a lista final
         projetos_finais = sorted(list(set(projetos_lcp)))
         
         return projetos_finais
@@ -174,12 +167,14 @@ if not st.session_state.user_name:
                 st.error("Por favor, insira seu nome para continuar.")
 
 else:
-    # Carrega a lista de projetos LCP do arquivo Excel
+    # --- NOVO --- Aplica o fundo escuro na página principal (opcional, pode remover se não quiser)
+    set_png_as_page_bg('assets/main_background.png')
+
     lista_projetos_lcp = carregar_projetos(ARQUIVO_PROJETOS)
 
     col1, col2 = st.columns([3, 1])
     with col1:
-        st.title("RELATÓRIO DE AVALIAÇÃO DE FORNECEDORES")
+        st.title("RELATÓRIO DE VOTAÇÃO DE FORNECEDORES")
     with col2:
         if os.path.exists("assets/banner_votacao.jpg"):
             st.image("assets/banner_votacao.jpg", width=250) 
@@ -193,17 +188,17 @@ else:
         st.session_state.is_admin = False
         st.rerun()
 
-    tab_votacao, tab_projetos, tab_relatorio, tab_dados, tab_criterios = st.tabs([
+    # --- MODIFICADO --- Removida a aba de critérios
+    tab_votacao, tab_projetos, tab_relatorio, tab_dados = st.tabs([
         "📝 NOVA AVALIAÇÃO", 
         "📂 PROJETOS AVALIADOS",
         "📊 RELATÓRIO DE MÉDIAS", 
-        "⚙️ DADOS E ADMINISTRAÇÃO",
-        "📘 CRITÉRIOS DE AVALIAÇÃO"
+        "⚙️ DADOS E ADMINISTRAÇÃO"
     ])
     df_votos_geral = carregar_votos()
     
     with tab_votacao:
-        st.header("Registrar Nova Avaliação de Projeto")
+        st.header(f"Registrar Nova Avaliação de Projeto")
         st.info("Selecione o projeto, o fornecedor e responda às perguntas para registrar uma nova avaliação.")
         with st.form(key="form_nova_avaliacao", clear_on_submit=True):
             
@@ -219,10 +214,40 @@ else:
             respostas = {}
             if projeto and empresa_selecionada:
                 st.subheader(f"Avaliação para: {empresa_selecionada} (Projeto: {projeto})")
+                
+                # --- NOVO --- Lógica para exibir os critérios em um pop-up
                 for categoria, perguntas_categoria in PERGUNTAS.items():
-                    st.markdown(f"#### {categoria}")
+                    # Layout para o título da categoria e o botão de critérios
+                    col_titulo, col_botao = st.columns([3, 1])
+                    
+                    with col_titulo:
+                        st.markdown(f"#### {categoria}")
+                    
+                    with col_botao:
+                        # O st.popover cria um botão que abre uma janela flutuante
+                        with st.popover(f"📘 Ver Critérios de {categoria}"):
+                            st.markdown(f"### Critérios para: **{categoria}**")
+                            legenda_geral = {"Nota": ["1", "2", "3", "4", "5"], "Significado": ["Needs improvement", "Meets partially the expectations", "Meets the expectations", "Exceed partially the expectations", "Exceed the expectations"]}
+                            st.table(pd.DataFrame(legenda_geral).set_index('Nota'))
+                            st.markdown("---")
+
+                            # Mostra a rubrica específica para cada pergunta da categoria
+                            for pid, ptexto in perguntas_categoria.items():
+                                st.markdown(f"##### Pergunta {pid}: {ptexto}")
+                                if categoria in RUBRICA and pid in RUBRICA[categoria]:
+                                    st.table(pd.DataFrame({'Nota': [1, 2, 3, 4, 5], 'Descrição do Critério': RUBRICA[categoria][pid]}).set_index('Nota'))
+                                else:
+                                    st.warning("Critérios para esta pergunta não definidos.")
+
+                    # Loop para exibir as perguntas e os radio buttons
                     for pid, ptexto in perguntas_categoria.items():
-                        respostas[f"{categoria}_{pid}"] = st.radio(f"**{pid}** - {ptexto}", OPCOES_VOTO, horizontal=True, key=f"vote_{projeto}_{empresa_selecionada}_{pid}")
+                        respostas[f"{categoria}_{pid}"] = st.radio(
+                            f"**{pid}** - {ptexto}", 
+                            OPCOES_VOTO, 
+                            horizontal=True, 
+                            key=f"vote_{projeto}_{empresa_selecionada}_{pid}"
+                        )
+                    st.divider() # Adiciona uma linha divisória entre as categorias
             
             submitted = st.form_submit_button("Registrar Avaliação")
             if submitted:
@@ -323,18 +348,3 @@ else:
                     os.remove(ARQUIVO_VOTOS)
                     st.success("Todo o histórico de votos foi apagado.")
                     st.rerun()
-
-    with tab_criterios:
-        st.header("📘 Guia de Critérios para Avaliação")
-        st.info("Use esta guia para consultar o que cada nota significa para cada pergunta específica.")
-        legenda_geral = {"Nota": ["1", "2", "3", "4", "5"], "Significado": ["Needs improvement", "Meets partially the expectations", "Meets the expectations", "Exceed partially the expectations", "Exceed the expectations"]}
-        st.table(pd.DataFrame(legenda_geral).set_index('Nota'))
-        st.markdown("---")
-        for categoria, perguntas in PERGUNTAS.items():
-            with st.expander(f"Critérios para a Categoria: **{categoria}**"):
-                for pid, ptexto in perguntas.items():
-                    st.markdown(f"##### Pergunta {pid}: {ptexto}")
-                    if categoria in RUBRICA and pid in RUBRICA[categoria]:
-                        st.table(pd.DataFrame({'Nota': [1, 2, 3, 4, 5], 'Descrição do Critério': RUBRICA[categoria][pid]}).set_index('Nota'))
-                    else:
-                        st.warning("Critérios para esta pergunta não definidos.")
