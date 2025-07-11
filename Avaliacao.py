@@ -179,7 +179,7 @@ else:
 
     col1, col2 = st.columns([3, 1])
     with col1:
-        st.title("RELATÓRIO DE VOTAÇÃO DE FORNECEDORES")
+        st.title("RELATÓRIO DE AVALIAÇÃO DE FORNECEDORES")
     with col2:
         if os.path.exists("assets/banner_votacao.jpg"):
             st.image("assets/banner_votacao.jpg", width=250) 
