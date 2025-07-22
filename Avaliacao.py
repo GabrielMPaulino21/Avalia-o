@@ -268,7 +268,22 @@ else:
                 st.subheader(f"Avaliação para: {empresa_selecionada} (Projeto: {projeto} / Ano: {ano_selecionado})")
                 
                 for categoria, perguntas_categoria in PERGUNTAS.items():
-                    st.markdown(f"#### {categoria}")
+                    col_titulo, col_botao_criterios = st.columns([4, 1])
+                    with col_titulo:
+                        st.markdown(f"#### {categoria}")
+                    with col_botao_criterios:
+                        with st.popover(f"📘 Ver Critérios de {categoria}"):
+                            st.markdown(f"### Critérios para: **{categoria}**")
+                            legenda_geral = {"Nota": ["1", "2", "3", "4", "5"], "Significado": ["Needs improvement", "Meets partially the expectations", "Meets the expectations", "Exceed partially the expectations", "Exceed the expectations"]}
+                            st.table(pd.DataFrame(legenda_geral).set_index('Nota'))
+                            st.markdown("---")
+                            for pid, ptexto in perguntas_categoria.items():
+                                st.markdown(f"##### Pergunta {pid}: {ptexto}")
+                                if categoria in RUBRICA and pid in RUBRICA[categoria]:
+                                    st.table(pd.DataFrame({'Nota': range(1, 6), 'Descrição do Critério': RUBRICA[categoria][pid]}).set_index('Nota'))
+                                else:
+                                    st.warning("Critérios para esta pergunta não definidos.")
+
                     for pid, ptexto in perguntas_categoria.items():
                         st.radio(f"**{pid}** - {ptexto}", OPCOES_VOTO, horizontal=True, key=f"vote_{categoria}_{pid}", index=5)
                     st.text_area("Comentários sobre esta categoria (opcional):", key=f"comment_{categoria}", height=100)
