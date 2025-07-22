@@ -5,6 +5,8 @@ import plotly.express as px
 from PIL import Image
 import base64
 from datetime import datetime
+import gspread
+from gspread_dataframe import set_with_dataframe
 
 # --- FUNÇÃO PARA CODIFICAR IMAGEM (PARA O PLANO DE FUNDO) ---
 @st.cache_data
@@ -47,9 +49,7 @@ st.set_page_config(
 )
 
 # --- DADOS E CONSTANTES ---
-ARQUIVO_VOTOS = 'votos.csv'
 ARQUIVO_PROJETOS = "BUSCAR_LCP.xlsx" 
-
 ADMIN_KEYS = [('gabriel', 'paulino'), ('rodrigo', 'saito')]
 EMPRESAS = sorted([
     "ABSAFE ENGENHARIA E SEGURANCA", "ASSESSORIA TECNICA ATENE LTDA", "ATUS ENGENHARIA LDA", "BECOMEX CONSULTORIA LTDA",
@@ -76,14 +76,57 @@ PERGUNTAS = {
     "DOCUMENTATION": { "4.1": "Supplier is following accordinly with SAM system requirements (evidences like schedules, measurements, pictures, reports, ART)", "4.2": "Suppliers delivery all the documentation (Company and employees) on time, according to the plan.", "4.3": "Suppliers deliver all the project documentation required (Ex: As Built, Drawings, Data sheets, Manuals, etc)." }
 }
 OPCOES_VOTO = ['1', '2', '3', '4', '5', 'N/A']
-ANOS_AVALIACAO = list(range(2020, 2027))
+ANOS_AVALIACAO = list(range(2020, 2031))
 
 # --- FUNÇÕES DE DADOS ---
-def carregar_votos():
-    if os.path.exists(ARQUIVO_VOTOS):
-        return pd.read_csv(ARQUIVO_VOTOS, dtype={'projeto': str, 'ano_avaliacao': str}, parse_dates=['id_avaliacao'])
-    else:
-        return pd.DataFrame(columns=['user_name', 'id_avaliacao', 'ano_avaliacao', 'projeto', 'empresa', 'categoria', 'pergunta_id', 'pergunta_texto', 'voto', 'comentario'])
+@st.cache_resource
+def connect_to_gsheet():
+    try:
+        creds = st.secrets["gcp_service_account"]
+        sa = gspread.service_account_from_dict(creds)
+        sh = sa.open(st.secrets["gcp_service_account"]["sheet_name"])
+        return sh
+    except Exception as e:
+        st.error(f"Erro ao conectar com o Google Sheets: {e}")
+        st.error("Verifique se o arquivo secrets.toml está configurado corretamente e se você compartilhou a planilha com o client_email.")
+        return None
+
+@st.cache_data(ttl=60)
+def carregar_votos(_spreadsheet):
+    """Carrega os votos da primeira aba da planilha do Google."""
+    try:
+        if spreadsheet is None:
+            return pd.DataFrame() 
+
+        worksheet = spreadsheet.get_worksheet(0)
+        df = pd.DataFrame(worksheet.get_all_records())
+        
+        colunas_necessarias = ["user_name", "id_avaliacao", "ano_avaliacao", "projeto", "empresa", "categoria", "pergunta_id", "pergunta_texto", "voto", "comentario"]
+        if df.empty:
+            return pd.DataFrame(columns=colunas_necessarias)
+        
+        for col in colunas_necessarias:
+            if col not in df.columns:
+                df[col] = pd.NA
+                
+        df['id_avaliacao'] = pd.to_datetime(df['id_avaliacao'])
+        df['ano_avaliacao'] = df['ano_avaliacao'].astype(str)
+        return df
+    except Exception as e:
+        st.error(f"Erro ao carregar os dados da planilha: {e}")
+        return pd.DataFrame()
+
+def salvar_votos(spreadsheet, df_to_save):
+    """Salva o DataFrame completo na primeira aba da planilha."""
+    try:
+        worksheet = spreadsheet.get_worksheet(0)
+        worksheet.clear()
+        set_with_dataframe(worksheet, df_to_save, include_index=False, allow_formulas=False)
+        st.cache_data.clear()
+        st.cache_resource.clear()
+    except Exception as e:
+        st.error(f"Erro ao salvar os dados na planilha: {e}")
+
 
 @st.cache_data
 def carregar_projetos(caminho_arquivo):
@@ -131,8 +174,10 @@ if not st.session_state.user_name:
             else:
                 st.error("Por favor, insira seu nome para continuar.")
 else:
-    set_png_as_page_bg('assets/main_background.png')
+    spreadsheet = connect_to_gsheet()
+    df_votos_geral = carregar_votos(spreadsheet)
     lista_projetos_lcp = carregar_projetos(ARQUIVO_PROJETOS)
+    set_png_as_page_bg('assets/main_background.png')
 
     col1, col2 = st.columns([3, 1])
     with col1:
@@ -169,7 +214,6 @@ else:
         "🏆 RANKING",
         "⚙️ DADOS E ADMINISTRAÇÃO"
     ])
-    df_votos_geral = carregar_votos()
     
     with tab_votacao:
         st.header("Registrar Nova Avaliação de Projeto")
@@ -196,7 +240,7 @@ else:
                 for categoria, perguntas_categoria in PERGUNTAS.items():
                     st.markdown(f"#### {categoria}")
                     for pid, ptexto in perguntas_categoria.items():
-                        st.radio(f"**{pid}** - {ptexto}", OPCOES_VOTO, horizontal=True, key=f"vote_{categoria}_{pid}")
+                        st.radio(f"**{pid}** - {ptexto}", OPCOES_VOTO, horizontal=True, key=f"vote_{categoria}_{pid}", index=5)
                     st.text_area("Comentários sobre esta categoria (opcional):", key=f"comment_{categoria}", height=100)
                     st.divider()
                 
@@ -227,12 +271,11 @@ else:
                     
                     df_novos_votos = pd.DataFrame(novos_votos)
                     df_votos_atualizado = pd.concat([df_votos_geral, df_novos_votos], ignore_index=True)
-                    df_votos_atualizado.to_csv(ARQUIVO_VOTOS, index=False)
+                    
+                    salvar_votos(spreadsheet, df_votos_atualizado)
 
                     st.success(f"Avaliação para '{empresa_selecionada}' registrada com sucesso!")
                     st.balloons()
-                    
-                    # --- CORREÇÃO --- Adicionando o st.rerun() de volta para forçar a atualização da página
                     st.rerun()
         else:
             st.warning("Por favor, selecione o Ano, o Projeto e o Fornecedor para iniciar a avaliação.")
@@ -366,7 +409,7 @@ else:
                         st.warning(f"Você está prestes a apagar a avaliação de '{user_selecionado_admin}' registrada em {data_str}.")
                         if st.button("Confirmar Exclusão Definitiva", type="primary"):
                             df_final = df_votos_geral[df_votos_geral['id_avaliacao'] != id_para_apagar]
-                            df_final.to_csv(ARQUIVO_VOTOS, index=False)
+                            salvar_votos(spreadsheet, df_final)
                             st.success("Avaliação apagada com sucesso.")
                             st.rerun()
         st.markdown("---")
@@ -378,7 +421,8 @@ else:
         st.warning("🚨 CUIDADO: Esta ação apagará **TODAS AS AVALIAÇÕES** permanentemente.")
         if st.checkbox("Eu entendo e quero apagar todos os dados."):
             if st.button("APAGAR TUDO", type="primary"):
-                if os.path.exists(ARQUIVO_VOTOS):
-                    os.remove(ARQUIVO_VOTOS)
-                    st.success("Todo o histórico de votos foi apagado.")
-                    st.rerun()
+                colunas = ['user_name', 'id_avaliacao', 'ano_avaliacao', 'projeto', 'empresa', 'categoria', 'pergunta_id', 'pergunta_texto', 'voto', 'comentario']
+                df_vazio = pd.DataFrame(columns=colunas)
+                salvar_votos(spreadsheet, df_vazio)
+                st.success("Todo o histórico de votos foi apagado da planilha.")
+                st.rerun()
