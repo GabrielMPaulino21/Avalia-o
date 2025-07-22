@@ -77,6 +77,33 @@ PERGUNTAS = {
 }
 OPCOES_VOTO = ['1', '2', '3', '4', '5', 'N/A']
 ANOS_AVALIACAO = list(range(2020, 2031))
+RUBRICA = {
+    "SAFETY" : {
+        "1.1": ["1 OSHA Accident", "1 Serious Accident and 0 OSHA Accident", "0 Accident and 2 or more near miss", "0 Accident and 1 near miss", "0 near miss / accidents"],
+        "1.2": ["rarely shows commitment with LTR and PPTs, needs constants improvements and guidances", "sometimes shows commitment with LTR and PPTs, but still needs improvements and guidances.", "shows commitment with LTR and PPTs, requiring punctual orientations.", "Often shows commitment with LTR and PPTs, sharing best practices and process improvements to contributes with safety.", "shows fully commitment with LTR and PPTs, being a partner to the safety and a benchmarking for other companies."],
+        "1.3": ["rarely delivery to the EHS on time, needs constants improvements and guidances", "sometimes delivery to the EHS on time, but still needs improvements and guidances.", "delivery to the EHS on time, requiring punctual orientations.", "Often delivery to the EHS on time, sharing best practices and process improvements to contributes with safety.", "shows fully commitment to delivery on time, being a partner to the safety and a benchmarking for other companies."],
+        "1.4": ["rarely leadership is present on the job", "sometimes leadership is present on the job, but still needs improvements and guidances.", "leadership is present on the job, requiring punctual orientations.", "Often leadership is present on the job, providing technical support and safety conditions to their associates.", "shows fully commitment to provide leadership full time by service, being a benchmarking for other companies."],
+        "1.5": ["rarely shows commitment with objectives and procedures, needs constants improvements and guidances", "sometimes shows commitment with objectives and procedures, but still needs improvements and guidances.", "shows commitment with objectives and procedures, requiring punctual orientations.", "Often shows commitment with objectives and procedures, sharing best practices and process improvements to contributes with business success.", "shows fully commitment with objectives and procedures, being a partner to the business and a benchmarking for other companies."]
+    },
+    "QUALITY": {
+        "2.1": ["rarely shows commitment to delivery on time, needs constants improvements and guidances", "sometimes shows commitment to delivery on time, but still needs improvements and guidances.", "shows commitment to delivery on time, requiring punctual orientations.", "Often shows commitment to delivery on time, applying proactive actions to mitigate delays.", "shows fully commitment to delivery on time, being a partner to the business and a benchmarking for other companies."],
+        "2.2": ["rarely shows commitment to execute services according to design, needs constants improvements and guidances", "sometimes shows commitment to execute services according to design, but still needs improvements and guidances.", "shows commitment to execute services according to design, requiring punctual orientations.", "Often shows commitment to execute services according to design, avoiding reworks.", "shows fully commitment to execute services according to design, avoiding reworks and being a benchmarking for other companies."],
+        "2.3": ["rarely shows commitment with housekeeping, needs constants improvements and guidances", "sometimes shows commitment with housekeeping, but still needs improvements and guidances.", "shows commitment with housekeeping, requiring punctual orientations.", "Often shows commitment with housekeeping, sharing best practices to contributes with safety.", "shows fully commitment with housekeeping, being a partner to the safety and a benchmarking for other companies."],
+        "2.4": ["rarely shows commitment to provide tools and personal protection according to standards, needs constants improvements and guidances", "sometimes shows commitment to provide tools and personal protection according to standards, but still needs improvements and guidances.", "shows commitment to provide tools and personal protection according to standards, requiring punctual orientations.", "Often shows commitment to provide tools and personal protection according to standards, providing safety conditions to their associates.", "shows fully commitment to provide tools and personal protection according to standards, providing safety conditions to their associates and being a benchmarking for other companies."],
+        "2.5": ["Overcost > 21%", "15% < Overcost < 20%", "10% < Overcost < 0%", "0%", "Deliver the project with saving"]
+    },
+    "PEOPLE": {
+        "3.1": ["rarely shows commitment to provide resources according to service complexity, needs constants improvements and guidances", "sometimes shows commitment to provide resources according to service complexity, but still needs improvements and guidances.", "shows commitment to provide resources according to service complexity, requiring punctual orientations.", "Often shows commitment to provide resources according to service complexity, with flexibility to mobilize resources quickly in order to avoid any impacts for the business.", "shows fully commitment with objectives and procedures, providing resources according to service complexity, with flexibility to mobilize resources quickly in order to avoid any impacts for the business, being a partner to the business and a benchmarking for other companies."],
+        "3.2": ["Full team (leadership and operational) shows low level of qualification, needs replacement.", "operational team are fully dependent of leadership to execute the service, needs improvements.", "shows commitment to provide resources according to service complexity, requiring punctual orientations.", "Often shows commitment to provide resources according to service complexity and requested qualification, presenting plans of development in order to avoid any impacts for the business.", "shows fully commitment with objectives and procedures, providing resources according to service complexity and high qualification of resources required."],
+        "3.3": ["rarely leadership is present on the job", "sometimes leadership is present on the job, but still needs improvements and guidances.", "leadership is present on the job, requiring punctual orientations.", "Often leadership is present on the job, providing technical support and safety conditions to their associates.", "shows fully commitment to provide leadership full time by service, being a benchmarking for other companies."]
+    },
+    "DOCUMENTATION": {
+        "4.1": ["rarely shows commitment to provide adequate evidences, needs constants improvements and guidances", "sometimes shows commitment to provide adequate evidences, but still needs improvements and guidances.", "shows commitment to provide to provide adequate evidences, requiring punctual orientations.", "Often shows commitment to provide adequate evidences, sharing best practices and process improvements to contributes with business success.", "shows fully commitment to provide adequate evidences, being a partner to the business and a benchmarking for other companies."],
+        "4.2": ["More than 30 days of delay comparing to the plan, to deliver all the documentation", "More than 15 days of delay comparing to the plan, to deliver all the documentation", "Maximum of 5 days of delay comparing to the plan, to deliver all the documentation", "Deliver all the documentation on time, comparing to the plan.", "Deliver all the documentation anticipated"],
+        "4.3": ["do not deliver the project documentation according to the contract / scope of work.", "missing no critical project documentation", "deliver all the project documentation according to the contract / scope of work", "deliver more project documentation than requested", "exceed the deliver expectatives"]
+    }
+
+}
 
 # --- FUNÇÕES DE DADOS ---
 @st.cache_resource
@@ -238,9 +265,23 @@ else:
                 st.subheader(f"Avaliação para: {empresa_selecionada} (Projeto: {projeto} / Ano: {ano_selecionado})")
                 
                 for categoria, perguntas_categoria in PERGUNTAS.items():
-                    st.markdown(f"#### {categoria}")
+                    col_titulo, col_botao_criterios = st.columns([3, 1 ])
+                    with col_titulo:
+                        st.markdown(f"#### {categoria}")
+                    with col_botao_criterios:
+                        with st.popover(f"📘 Ver Critérios de {categoria}"):
+                            st.markdown(f"### Critérios para: **{categoria}**")
+                            legenda_geral = {"Nota": ["1", "2", "3", "4", "5"], "Significado": ["Needs improvement", "Meets partially the expectations", "Meets the expectations", "Exceed partially the expectations", "Exceed the expectations"]}
+                            st.table(pd.DataFrame(legenda_geral).set_index('Nota'))
+                            st.markdown("---")
+                            for pid, ptexto in perguntas_categoria.items():
+                                st.markdown(f"##### Pergunta {pid}: {ptexto}")
+                                if categoria in RUBRICA and pid in RUBRICA[categoria]:
+                                    st.table(pd.DataFrame({'Nota': range(1, 6), 'Descrição do Critério': RUBRICA[categoria][pid]}).set_index('Nota'))
+                                else:
+                                    st.warning("Critérios para esta pergunta não definidos.")
                     for pid, ptexto in perguntas_categoria.items():
-                        st.radio(f"**{pid}** - {ptexto}", OPCOES_VOTO, horizontal=True, key=f"vote_{categoria}_{pid}", index=5)
+                        st.radio(f"**{pid}** - {ptexto}", OPCOES_VOTO, horizontal=True, key=f"vote_{categoria}_{pid}")
                     st.text_area("Comentários sobre esta categoria (opcional):", key=f"comment_{categoria}", height=100)
                     st.divider()
                 
@@ -279,7 +320,6 @@ else:
                     st.rerun()
         else:
             st.warning("Por favor, selecione o Ano, o Projeto e o Fornecedor para iniciar a avaliação.")
-
 
     with tab_projetos:
         st.header("Visão Geral de Projetos Avaliados")
