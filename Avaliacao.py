@@ -7,6 +7,7 @@ import base64
 from datetime import datetime
 import gspread
 from gspread_dataframe import set_with_dataframe
+import pytz
 
 # --- FUNÇÃO PARA CODIFICAR IMAGEM (PARA O PLANO DE FUNDO) ---
 @st.cache_data
@@ -243,9 +244,10 @@ else:
     ])
     
     with tab_votacao:
-        st.header("Registrar Nova Avaliação de Projeto")
+        st.header(f"Registrar Nova Avaliação de Projeto")
         st.info("Passo 1: Selecione o contexto da avaliação (Ano, Projeto e Fornecedor).")
 
+        # PASSO 1: SELEÇÃO DO CONTEXTO (FORA DO FORMULÁRIO)
         col_ano, col_proj, col_emp = st.columns(3)
         with col_ano:
             ano_atual = datetime.now().year
@@ -258,6 +260,7 @@ else:
         
         st.markdown("---")
 
+        # PASSO 2: EXIBE O FORMULÁRIO APENAS QUANDO O CONTEXTO ESTIVER COMPLETO
         if projeto and empresa_selecionada and ano_selecionado:
             st.info("Passo 2: Preencha as notas e comentários para a avaliação.")
             
@@ -265,30 +268,17 @@ else:
                 st.subheader(f"Avaliação para: {empresa_selecionada} (Projeto: {projeto} / Ano: {ano_selecionado})")
                 
                 for categoria, perguntas_categoria in PERGUNTAS.items():
-                    col_titulo, col_botao_criterios = st.columns([3, 1 ])
-                    with col_titulo:
-                        st.markdown(f"#### {categoria}")
-                    with col_botao_criterios:
-                        with st.popover(f"📘 Ver Critérios de {categoria}"):
-                            st.markdown(f"### Critérios para: **{categoria}**")
-                            legenda_geral = {"Nota": ["1", "2", "3", "4", "5"], "Significado": ["Needs improvement", "Meets partially the expectations", "Meets the expectations", "Exceed partially the expectations", "Exceed the expectations"]}
-                            st.table(pd.DataFrame(legenda_geral).set_index('Nota'))
-                            st.markdown("---")
-                            for pid, ptexto in perguntas_categoria.items():
-                                st.markdown(f"##### Pergunta {pid}: {ptexto}")
-                                if categoria in RUBRICA and pid in RUBRICA[categoria]:
-                                    st.table(pd.DataFrame({'Nota': range(1, 6), 'Descrição do Critério': RUBRICA[categoria][pid]}).set_index('Nota'))
-                                else:
-                                    st.warning("Critérios para esta pergunta não definidos.")
+                    st.markdown(f"#### {categoria}")
                     for pid, ptexto in perguntas_categoria.items():
-                        st.radio(f"**{pid}** - {ptexto}", OPCOES_VOTO, horizontal=True, key=f"vote_{categoria}_{pid}")
+                        st.radio(f"**{pid}** - {ptexto}", OPCOES_VOTO, horizontal=True, key=f"vote_{categoria}_{pid}", index=5)
                     st.text_area("Comentários sobre esta categoria (opcional):", key=f"comment_{categoria}", height=100)
                     st.divider()
                 
                 submitted = st.form_submit_button("Registrar Avaliação")
                 
                 if submitted:
-                    id_da_avaliacao = datetime.now()
+                    fuso_horario_sp = pytz.timezone("America/Sao_Paulo")
+                    id_da_avaliacao = datetime.now(fuso_horario_sp)
                     novos_votos = []
                     
                     for categoria, perguntas_categoria in PERGUNTAS.items():
@@ -415,10 +405,11 @@ else:
         if df_votos_geral.empty:
             st.info("Nenhuma participação registrada ainda.")
         else:
-            if not pd.api.types.is_datetime64_any_dtype(df_votos_geral['id_avaliacao']):
+             if 'id_avaliacao' in df_votos_geral.columns and not pd.api.types.is_datetime64_any_dtype(df_votos_geral['id_avaliacao']):
                 df_votos_geral['id_avaliacao'] = pd.to_datetime(df_votos_geral['id_avaliacao'])
             
-            for (id_aval, ano, proj, emp, user_name), df_grupo in df_votos_geral.groupby(['id_avaliacao', 'ano_avaliacao', 'projeto', 'empresa', 'user_name']):
+             for group_keys, df_grupo in df_votos_geral.groupby(['id_avaliacao', 'ano_avaliacao', 'projeto', 'empresa', 'user_name']):
+                id_aval, ano, proj, emp, user_name = group_keys
                 with st.expander(f"**Data:** {id_aval.strftime('%d/%m/%Y %H:%M')} | **Avaliador:** {user_name} | **Projeto:** {proj}"):
                     st.markdown(f"**Empresa Avaliada:** {emp} | **Ano da Avaliação:** {ano}")
                     st.markdown("**Notas:**")
@@ -438,20 +429,22 @@ else:
             if user_selecionado_admin:
                 df_usuario = df_votos_geral[df_votos_geral['user_name'] == user_selecionado_admin]
                 avaliacoes_unicas = df_usuario[['projeto', 'empresa', 'ano_avaliacao', 'id_avaliacao']].drop_duplicates().sort_values(by='id_avaliacao', ascending=False)
-                opcoes_exclusao = [f"Data: {row['id_avaliacao'].strftime('%d/%m/%y %H:%M')} | Ano: {row['ano_avaliacao']} | Projeto: {row['projeto']} | Empresa: {row['empresa']}" for index, row in avaliacoes_unicas.iterrows()]
-                if not opcoes_exclusao:
+                
+                mapa_exclusao = {f"Data: {row['id_avaliacao'].strftime('%d/%m/%y %H:%M')} | Ano: {row['ano_avaliacao']} | Projeto: {row['projeto']} | Empresa: {row['empresa']}": row['id_avaliacao'] for index, row in avaliacoes_unicas.iterrows()}
+                
+                if not mapa_exclusao:
                     st.info(f"Nenhuma avaliação encontrada para o usuário {user_selecionado_admin}.")
                 else:
-                    avaliacao_para_apagar_str = st.selectbox("2. Selecione a avaliação específica para apagar:", opcoes_exclusao, index=None, placeholder="Escolha uma avaliação para apagar...")
+                    avaliacao_para_apagar_str = st.selectbox("2. Selecione a avaliação específica para apagar:", list(mapa_exclusao.keys()), index=None, placeholder="Escolha uma avaliação para apagar...")
                     if avaliacao_para_apagar_str:
-                        data_str = avaliacao_para_apagar_str.split(' | ')[0].replace('Data: ', '')
-                        id_para_apagar = datetime.strptime(data_str, '%d/%m/%y %H:%M')
-                        st.warning(f"Você está prestes a apagar a avaliação de '{user_selecionado_admin}' registrada em {data_str}.")
+                        id_para_apagar = mapa_exclusao[avaliacao_para_apagar_str]
+                        st.warning(f"Você está prestes a apagar a avaliação de '{user_selecionado_admin}' registrada em {avaliacao_para_apagar_str.split(' | ')[0].replace('Data: ', '')}.")
                         if st.button("Confirmar Exclusão Definitiva", type="primary"):
                             df_final = df_votos_geral[df_votos_geral['id_avaliacao'] != id_para_apagar]
                             salvar_votos(spreadsheet, df_final)
                             st.success("Avaliação apagada com sucesso.")
                             st.rerun()
+
         st.markdown("---")
         st.subheader("Visualizar Todos os Dados Brutos")
         st.dataframe(df_votos_geral, use_container_width=True)
