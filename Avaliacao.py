@@ -382,7 +382,7 @@ else:
                 for i, empresa in enumerate(empresas_avaliadas):
                     df_empresa = media_por_categoria[media_por_categoria['empresa'] == empresa]
                     fig = px.bar(df_empresa, x='categoria', y='media_avaliacao', color='categoria', title=empresa, text_auto='.2f')
-                    fig.update_layout(yaxis_range=[0, 5], xaxis_title=None, yaxis_title="Média", showlegend=False, title_font_size=14, title_x=0.5)
+                    fig.update_layout(yaxis_range=[0, 5], xaxis_title=None, yaxis_title="Média", showlegend=False, title_font_size=14, title_x=0.05)
                     with cols[i % 3]:
                         st.plotly_chart(fig, use_container_width=True)
                         
