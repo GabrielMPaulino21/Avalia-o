@@ -103,7 +103,6 @@ RUBRICA = {
         "4.2": ["More than 30 days of delay comparing to the plan, to deliver all the documentation", "More than 15 days of delay comparing to the plan, to deliver all the documentation", "Maximum of 5 days of delay comparing to the plan, to deliver all the documentation", "Deliver all the documentation on time, comparing to the plan.", "Deliver all the documentation anticipated"],
         "4.3": ["do not deliver the project documentation according to the contract / scope of work.", "missing no critical project documentation", "deliver all the project documentation according to the contract / scope of work", "deliver more project documentation than requested", "exceed the deliver expectatives"]
     }
-
 }
 
 # --- FUNÇÕES DE DADOS ---
@@ -123,10 +122,10 @@ def connect_to_gsheet():
 def carregar_votos(_spreadsheet):
     """Carrega os votos da primeira aba da planilha do Google."""
     try:
-        if spreadsheet is None:
+        if _spreadsheet is None:
             return pd.DataFrame() 
 
-        worksheet = spreadsheet.get_worksheet(0)
+        worksheet = _spreadsheet.get_worksheet(0)
         df = pd.DataFrame(worksheet.get_all_records())
         
         colunas_necessarias = ["user_name", "id_avaliacao", "ano_avaliacao", "projeto", "empresa", "categoria", "pergunta_id", "pergunta_texto", "voto", "comentario"]
@@ -185,6 +184,10 @@ if 'user_name' not in st.session_state:
     st.session_state.user_name = None
     st.session_state.is_admin = False
 
+# ===== ALTERAÇÃO 1: INICIALIZAR O ESTADO DA ABA ATIVA =====
+if 'active_tab' not in st.session_state:
+    st.session_state.active_tab = "📝 NOVA AVALIAÇÃO"
+
 # --- LÓGICA DE EXIBIÇÃO ---
 if not st.session_state.user_name:
     set_png_as_page_bg('assets/login_fundo.jpg')
@@ -235,15 +238,26 @@ else:
         unsafe_allow_html=True
     )
 
-    tab_votacao, tab_projetos, tab_relatorio, tab_ranking, tab_dados = st.tabs([
+    # ===== ALTERAÇÃO 2: SUBSTITUIR st.tabs por st.radio e if/elif =====
+    tab_names = [
         "📝 NOVA AVALIAÇÃO", 
         "📂 PROJETOS AVALIADOS",
         "📊 RELATÓRIO DE MÉDIAS",
         "🏆 RANKING",
         "⚙️ DADOS E ADMINISTRAÇÃO"
-    ])
-    
-    with tab_votacao:
+    ]
+
+    # Usamos o st.radio para controlar a navegação
+    st.session_state.active_tab = st.radio(
+        "Navegação", 
+        options=tab_names, 
+        horizontal=True, 
+        label_visibility="collapsed",
+        key="tabs_radio" 
+    )
+
+    # Agora, usamos if/elif para mostrar o conteúdo da aba selecionada
+    if st.session_state.active_tab == "📝 NOVA AVALIAÇÃO":
         st.header(f"Registrar Nova Avaliação de Projeto")
         st.info("Passo 1: Selecione o contexto da avaliação (Ano, Projeto e Fornecedor).")
 
@@ -326,7 +340,7 @@ else:
         else:
             st.warning("Por favor, selecione o Ano, o Projeto e o Fornecedor para iniciar a avaliação.")
 
-    with tab_projetos:
+    elif st.session_state.active_tab == "📂 PROJETOS AVALIADOS":
         st.header("Visão Geral de Projetos Avaliados")
         st.info("Esta aba mostra um resumo das avaliações realizadas, sem exibir as notas ou comentários.")
         if df_votos_geral.empty:
@@ -339,7 +353,7 @@ else:
                     st.markdown(f"- **Ano da Avaliação:** {row['ano_avaliacao']}")
                     st.markdown(f"- **Data de Registro:** {row['id_avaliacao'].strftime('%d/%m/%Y %H:%M')}")
 
-    with tab_relatorio:
+    elif st.session_state.active_tab == "📊 RELATÓRIO DE MÉDIAS":
         st.header("Análise de Desempenho dos Fornecedores")
         if df_votos_geral.empty:
             st.info("Ainda não há votos registrados.")
@@ -392,7 +406,7 @@ else:
                     tabela_pivot = media_por_categoria.pivot_table(index='empresa', columns='categoria', values='media_avaliacao').round(2)
                     st.dataframe(tabela_pivot, use_container_width=True)
     
-    with tab_ranking:
+    elif st.session_state.active_tab == "🏆 RANKING":
         st.header("🏆 Ranking Geral de Fornecedores")
         if df_votos_geral.empty:
             st.info("Nenhuma avaliação registrada para gerar o ranking.")
@@ -410,7 +424,7 @@ else:
             ranking_ordenado['Média Geral'] = ranking_ordenado['Média Geral'].map('{:.2f}'.format)
             st.dataframe(ranking_ordenado, use_container_width=True)
 
-    with tab_dados:
+    elif st.session_state.active_tab == "⚙️ DADOS E ADMINISTRAÇÃO":
         st.header("Painel de Administração e Dados")
         if not st.session_state.is_admin:
             st.warning("🔒 Acesso Restrito. Apenas administradores podem visualizar esta aba.")
@@ -420,10 +434,10 @@ else:
         if df_votos_geral.empty:
             st.info("Nenhuma participação registrada ainda.")
         else:
-             if 'id_avaliacao' in df_votos_geral.columns and not pd.api.types.is_datetime64_any_dtype(df_votos_geral['id_avaliacao']):
+            if 'id_avaliacao' in df_votos_geral.columns and not pd.api.types.is_datetime64_any_dtype(df_votos_geral['id_avaliacao']):
                 df_votos_geral['id_avaliacao'] = pd.to_datetime(df_votos_geral['id_avaliacao'])
             
-             for group_keys, df_grupo in df_votos_geral.groupby(['id_avaliacao', 'ano_avaliacao', 'projeto', 'empresa', 'user_name']):
+            for group_keys, df_grupo in df_votos_geral.groupby(['id_avaliacao', 'ano_avaliacao', 'projeto', 'empresa', 'user_name']):
                 id_aval, ano, proj, emp, user_name = group_keys
                 with st.expander(f"**Data:** {id_aval.strftime('%d/%m/%Y %H:%M')} | **Avaliador:** {user_name} | **Projeto:** {proj}"):
                     st.markdown(f"**Empresa Avaliada:** {emp} | **Ano da Avaliação:** {ano}")
