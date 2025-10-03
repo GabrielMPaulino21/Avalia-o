@@ -1,7 +1,0 @@
-streamlit
-pandas
-plotly
-openpyxl
-gspread
-gspread-dataframe
-pytz
